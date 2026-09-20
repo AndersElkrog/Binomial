@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="UTF-8">
+<title>Binomialforsøg med terninger</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+
+body{
+font-family:Arial;
+text-align:center;
+}
+
+#diceContainer{
+display:grid;
+grid-template-columns:repeat(6,50px);
+gap:8px;
+justify-content:center;
+margin:20px 0;
+}
+
+.die{
+width:40px;
+height:40px;
+border:2px solid black;
+border-radius:8px;
+display:grid;
+grid-template-columns:repeat(3,1fr);
+grid-template-rows:repeat(3,1fr);
+padding:4px;
+background:white;
+}
+
+.dot{
+width:7px;
+height:7px;
+border-radius:50%;
+background:black;
+justify-self:center;
+align-self:center;
+opacity:0;
+}
+
+.success{
+background:#d3d3d3;
+}
+
+button{
+font-size:16px;
+padding:6px 16px;
+margin:4px;
+}
+
+#info{
+margin-top:10px;
+font-size:18px;
+}
+
+#chartContainer{
+width:700px;
+margin:auto;
+}
+
+</style>
+</head>
+<body>
+
+<h2>Binomialforsøg – 12 terninger</h2>
+
+<button id="rollButton">Kast</button>
+<button id="autoButton">Auto-kast 100</button>
+<button id="toggleTheory">Vis teoretisk fordeling</button>
+<button id="resetButton">Reset</button>
+
+<div id="info">
+Antal kast: <span id="rollCount">0</span>
+</div>
+
+<div id="diceContainer"></div>
+
+<div id="chartContainer">
+<canvas id="chart"></canvas>
+</div>
+
+<script>
+
+const diceContainer = document.getElementById("diceContainer");
+const rollButton = document.getElementById("rollButton");
+const autoButton = document.getElementById("autoButton");
+const resetButton = document.getElementById("resetButton");
+const toggleTheory = document.getElementById("toggleTheory");
+const rollCountSpan = document.getElementById("rollCount");
+
+let rollCount = 0;
+let showTheory = false;
+
+// registrerer antal udfald
+let counts = Array(13).fill(0);
+
+// prikmønstre
+const dicePatterns = {
+1:[4],
+2:[0,8],
+3:[0,4,8],
+4:[0,2,6,8],
+5:[0,2,4,6,8],
+6:[0,2,3,5,6,8]
+};
+
+// opret 12 terninger
+let dice = [];
+
+for(let i=0;i<12;i++){
+
+let die = document.createElement("div");
+die.classList.add("die");
+
+let dots=[];
+
+for(let j=0;j<9;j++){
+
+let dot=document.createElement("div");
+dot.classList.add("dot");
+
+die.appendChild(dot);
+dots.push(dot);
+
+}
+
+diceContainer.appendChild(die);
+
+dice.push({element:die,dots:dots});
+
+}
+
+// vis terning
+function showDice(die,value){
+
+die.dots.forEach(d=>d.style.opacity=0);
+
+dicePatterns[value].forEach(i=>{
+die.dots[i].style.opacity=1;
+});
+
+}
+
+// binomialfunktion
+function binomial(n,k,p){
+
+function factorial(x){
+let f=1;
+for(let i=2;i<=x;i++) f*=i;
+return f;
+}
+
+return factorial(n)/(factorial(k)*factorial(n-k))*Math.pow(p,k)*Math.pow(1-p,n-k);
+}
+
+// teoretisk fordeling
+let theory = [];
+
+for(let k=0;k<=12;k++){
+theory.push(binomial(12,k,1/6));
+}
+
+// chart
+const ctx = document.getElementById("chart");
+
+const chart = new Chart(ctx,{
+type:"bar",
+data:{
+labels:[0,1,2,3,4,5,6,7,8,9,10,11,12],
+datasets:[
+{
+label:"Relativ frekvens",
+data:Array(13).fill(0),
+backgroundColor:"#1F7789"
+},
+{
+label:"Bin(12,1/6)",
+data:theory,
+type:"bar",
+backgroundColor:"rgba(255,0,0,0.25)",
+borderColor:"rgba(255,0,0,0.8)",
+borderWidth:1,
+order:2,
+hidden:true
+}
+]
+},
+options:{
+animation:false,
+scales:{
+y:{
+beginAtZero:true,
+max:1,
+title:{display:true,text:"Sandsynlighed"}
+},
+x:{
+title:{display:true,text:"Antal succeser"}
+}
+}
+}
+});
+
+// kast funktion
+function rollDice(){
+
+let successes=0;
+
+dice.forEach(d=>{
+
+let roll=Math.floor(Math.random()*6)+1;
+
+showDice(d,roll);
+
+d.element.classList.remove("success");
+
+if(roll===6){
+successes++;
+d.element.classList.add("success");
+}
+
+});
+
+counts[successes]++;
+
+rollCount++;
+
+rollCountSpan.textContent=rollCount;
+
+let frequencies=counts.map(c=>c/rollCount);
+
+chart.data.datasets[0].data=frequencies;
+
+// efter første kast ændres y-aksen
+if(rollCount===1){
+chart.options.scales.y.max=0.6;
+}
+
+chart.update();
+
+}
+
+// auto kast
+function autoRoll(){
+
+for(let i=0;i<100;i++){
+rollDice();
+}
+
+}
+
+// vis/skjul teori
+toggleTheory.onclick=function(){
+
+showTheory=!showTheory;
+
+chart.data.datasets[1].hidden=!showTheory;
+
+toggleTheory.textContent=
+showTheory?"Skjul teoretisk fordeling":"Vis teoretisk fordeling";
+
+chart.update();
+
+};
+
+// reset
+resetButton.onclick=function(){
+
+rollCount=0;
+counts=Array(13).fill(0);
+rollCountSpan.textContent=0;
+
+chart.data.datasets[0].data=Array(13).fill(0);
+
+chart.options.scales.y.max=1;
+
+chart.update();
+
+};
+
+// events
+rollButton.addEventListener("click",rollDice);
+autoButton.addEventListener("click",autoRoll);
+
+</script>
+
+</body>
+</html>
